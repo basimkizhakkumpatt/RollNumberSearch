@@ -40,6 +40,10 @@
   .fab:active { background:var(--accent-d); }
   .fab svg { width:26px; height:26px; fill:none; stroke:#fff; stroke-width:2.4; stroke-linecap:round; transition:transform .18s; }
   .fab.open svg { transform:rotate(45deg); }
+  .fab .tick { display:none; }
+  .fab.done:not(.open) .plus { display:none; }
+  .fab.done:not(.open) .tick { display:block; }
+  .fab.done { background:#16a34a; box-shadow:0 4px 14px rgba(22,163,74,.4); }
   .menu { position:fixed; right:calc(16px + env(safe-area-inset-right,0px)); bottom:calc(84px + env(safe-area-inset-bottom,0px)); z-index:30;
     width:min(260px, calc(100% - 32px)); background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px;
     box-shadow:0 8px 28px rgba(17,24,39,.18); display:none; }
@@ -87,7 +91,8 @@
   <input type="file" id="pfile" accept=".zip,application/zip,application/x-zip-compressed" hidden>
 </div>
 <button class="fab" id="fab" type="button" aria-label="Upload files" aria-expanded="false">
-  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+  <svg class="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+  <svg class="tick" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
 </button>
 
 <script>/*!
@@ -204,7 +209,12 @@ function parseXlsx(buf){
 
 function norm(x){ return String(x).toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^([A-Z]*)0+(?=\d)/,'$1'); }   // G030, g30 and G 30 are all the same roll no
 
+function updateFab(){
+  var f=document.getElementById('fab'); if(!f) return;
+  f.classList.toggle('done', rows.length>0 && photoCount>0);
+}
 function render(){
+  updateFab();
   var inp=document.getElementById('roll'), key=norm(inp.value);
   document.getElementById('clear').className = key ? 'show' : '';
   var msg=document.getElementById('msg'), res=document.getElementById('result');
@@ -328,13 +338,17 @@ function showPhoto(key){
   });
 }
 
-function shrink(buf){   // phone photos are huge; keep a 480px copy
-  return createImageBitmap(new Blob([buf])).then(function(bm){
-    var s=Math.min(1,480/Math.max(bm.width,bm.height)), c=document.createElement('canvas');
+function shrink(buf){   // phone photos are huge; keep a small copy (decoded already shrunk, which is much faster)
+  var blob=new Blob([buf]);
+  function done(bm){
+    var s=Math.min(1,420/Math.max(bm.width,bm.height)), c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(bm.width*s)); c.height=Math.max(1,Math.round(bm.height*s));
     c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
     if(bm.close) bm.close();
-    return new Promise(function(res){ c.toBlob(res,'image/jpeg',0.85); });
+    return new Promise(function(res){ c.toBlob(res,'image/jpeg',0.8); });
+  }
+  return createImageBitmap(blob,{resizeWidth:420,resizeQuality:'medium'}).then(done,function(){
+    return createImageBitmap(blob).then(done);   // older phones without resize option
   });
 }
 
@@ -347,16 +361,19 @@ function importZip(buf, setStatus){
       if(m && m[1].trim()!=='') list.push({key:norm(m[1]), entry:entry});
     });
     if(!list.length) throw new Error('no photos found in the ZIP');
-    var items=[], skipped=0, i=0;
+    var items=[], skipped=0, i=0, done=0, N=4;   // 4 photos at a time
     function step(){
       if(i>=list.length) return;
       var cur=list[i++];
-      setStatus('Loading photos '+i+'/'+list.length+'...');
       return cur.entry.async('arraybuffer').then(shrink).then(function(b){
         if(b) items.push([cur.key,b]); else skipped++;
-      }).catch(function(){ skipped++; }).then(step);
+      }).catch(function(){ skipped++; }).then(function(){
+        done++; setStatus('Loading photos '+done+'/'+list.length+'...');
+        return step();
+      });
     }
-    return Promise.resolve(step()).then(function(){
+    var workers=[]; for(var w=0;w<N;w++) workers.push(step());
+    return Promise.all(workers).then(function(){
       if(!items.length) throw new Error('no photos could be read');
       return {items:items, skipped:skipped};
     });
