@@ -340,6 +340,7 @@ function showPhoto(key){
 
 function shrink(buf){   // phone photos are huge; keep a small copy (decoded already shrunk, which is much faster)
   var blob=new Blob([buf]);
+  if(buf.byteLength<=250000) return Promise.resolve(blob);   // already small: keep as is, no decoding needed
   function done(bm){
     var s=Math.min(1,420/Math.max(bm.width,bm.height)), c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(bm.width*s)); c.height=Math.max(1,Math.round(bm.height*s));
@@ -361,7 +362,7 @@ function importZip(buf, setStatus){
       if(m && m[1].trim()!=='') list.push({key:norm(m[1]), entry:entry});
     });
     if(!list.length) throw new Error('no photos found in the ZIP');
-    var items=[], skipped=0, i=0, done=0, N=4;   // 4 photos at a time
+    var items=[], skipped=0, i=0, done=0, N=Math.min(6,Math.max(3,navigator.hardwareConcurrency||4));   // several photos at a time
     function step(){
       if(i>=list.length) return;
       var cur=list[i++];
