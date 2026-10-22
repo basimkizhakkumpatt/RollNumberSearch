@@ -338,13 +338,17 @@ function showPhoto(key){
   });
 }
 
-function shrink(buf){   // phone photos are huge; keep a 480px copy
-  return createImageBitmap(new Blob([buf])).then(function(bm){
-    var s=Math.min(1,480/Math.max(bm.width,bm.height)), c=document.createElement('canvas');
+function shrink(buf){   // phone photos are huge; keep a small copy (decoded already shrunk, which is much faster)
+  var blob=new Blob([buf]);
+  function done(bm){
+    var s=Math.min(1,420/Math.max(bm.width,bm.height)), c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(bm.width*s)); c.height=Math.max(1,Math.round(bm.height*s));
     c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
     if(bm.close) bm.close();
-    return new Promise(function(res){ c.toBlob(res,'image/jpeg',0.85); });
+    return new Promise(function(res){ c.toBlob(res,'image/jpeg',0.8); });
+  }
+  return createImageBitmap(blob,{resizeWidth:420,resizeQuality:'medium'}).then(done,function(){
+    return createImageBitmap(blob).then(done);   // older phones without resize option
   });
 }
 
@@ -357,16 +361,19 @@ function importZip(buf, setStatus){
       if(m && m[1].trim()!=='') list.push({key:norm(m[1]), entry:entry});
     });
     if(!list.length) throw new Error('no photos found in the ZIP');
-    var items=[], skipped=0, i=0;
+    var items=[], skipped=0, i=0, done=0, N=4;   // 4 photos at a time
     function step(){
       if(i>=list.length) return;
       var cur=list[i++];
-      setStatus('Loading photos '+i+'/'+list.length+'...');
       return cur.entry.async('arraybuffer').then(shrink).then(function(b){
         if(b) items.push([cur.key,b]); else skipped++;
-      }).catch(function(){ skipped++; }).then(step);
+      }).catch(function(){ skipped++; }).then(function(){
+        done++; setStatus('Loading photos '+done+'/'+list.length+'...');
+        return step();
+      });
     }
-    return Promise.resolve(step()).then(function(){
+    var workers=[]; for(var w=0;w<N;w++) workers.push(step());
+    return Promise.all(workers).then(function(){
       if(!items.length) throw new Error('no photos could be read');
       return {items:items, skipped:skipped};
     });
