@@ -1,0 +1,28 @@
+ROLL NO SEARCH - how to get the APK
+===================================
+
+OPTION A - no software needed (GitHub, free)
+ 1. Create a free account at github.com and make a new repository.
+ 2. Upload everything inside this folder (keep the folder structure,
+    including the hidden ".github" folder).
+ 3. Open the "Actions" tab -> "Build APK" -> wait ~3-5 minutes for the green tick.
+ 4. Open that run -> download "RollNoSearch-APK" -> unzip -> app-debug.apk.
+ 5. Copy app-debug.apk to your phone and tap it. If asked, allow
+    "Install unknown apps" for your file manager/browser.
+
+OPTION B - Android Studio
+ 1. File -> Open -> select this folder, let Gradle sync.
+ 2. Build -> Build APK(s). The file appears in app/build/outputs/apk/debug/.
+
+Using the app
+ - Tap "Upload Excel", choose ROLL_NO_SERCH_PAD_2026-27.xlsx
+   (any sheet with a ROLL NO heading row works; columns are found by their headings).
+ - Type a roll number; the details appear instantly.
+ - The data is remembered, so you only upload again when the file changes.
+
+Photos
+ - Put the student photos in one ZIP, each named by roll number: 471.jpg, 452.jpg ...
+   (jpg, jpeg, png, webp; folders inside the ZIP are fine).
+ - Tap "Upload Photos" and choose the ZIP. The photo shows at the top of the student's card.
+ - Uploading a new photos ZIP replaces the old photos. Photos stay when you upload a new Excel file.
+ - If a student has no photo, a grey placeholder is shown.
